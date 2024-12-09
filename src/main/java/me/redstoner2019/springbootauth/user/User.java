@@ -18,19 +18,31 @@ public class User {
     @Column(name = "password")
     private String password;
 
-    @Column(name = "email")
+    @Column(unique = true, name = "email")
     private String email;
+
+    @Column(name = "salt")
+    private byte[] salt;
 
     public User(){
 
     }
 
-    public User(long uuid, String username, String displayName, String password, String email) {
+    public User(long uuid, String username, String displayName, String password, String email, byte[] salt) {
         this.uuid = uuid;
         this.username = username;
         this.displayName = displayName;
         this.password = password;
         this.email = email;
+        this.salt = salt;
+    }
+
+    public byte[] getSalt() {
+        return salt;
+    }
+
+    public void setSalt(byte[] salt) {
+        this.salt = salt;
     }
 
     public long getUuid() {

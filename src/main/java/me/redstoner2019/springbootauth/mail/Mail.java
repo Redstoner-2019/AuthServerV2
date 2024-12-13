@@ -48,7 +48,54 @@ public class Mail {
                     try {
                         Transport.send(message);
                     } catch (MessagingException e) {
-                        throw new RuntimeException(e);
+                        e.printStackTrace();
+                    }
+                }
+            }).start();
+        } catch (MessagingException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void sendLoginEmail(String to, String code, String user, String displayname){
+        try {
+            Message message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(username));
+            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
+            message.setSubject("Login into your account");
+
+            int expiry = 15;
+
+            String text = """
+                Hello %displayname%!
+                
+                We just detected a login into your account.
+                If this was you, here is the code to confirm your login.
+                
+                =======
+                %code%
+                =======
+                
+                This code will expire in %expiry% Minutes.
+                
+                If this was NOT you, please immediately change your password.
+                
+                Have a nice day!
+                """;
+
+            text = text.replace("%displayname%", displayname);
+            text = text.replace("%code%", code);
+            text = text.replace("%expiry%", String.valueOf(expiry));
+
+            message.setText(text);
+
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Transport.send(message);
+                    } catch (MessagingException e) {
+                        e.printStackTrace();
                     }
                 }
             }).start();

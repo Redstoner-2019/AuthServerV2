@@ -18,6 +18,8 @@ public class Token {
         return JWT.create()
                 .withSubject(userId) // User-specific data
                 .withExpiresAt(new Date(System.currentTimeMillis() + TOKEN_EXPIRY)) // Token expiration
+                .withIssuedAt(new Date(System.currentTimeMillis()))
+                .withIssuer("auth-server-1.0.0")
                 .sign(Algorithm.HMAC256(SECRET_KEY)); // Sign the token
     }
 
@@ -29,10 +31,26 @@ public class Token {
         return decodedJWT.getSubject(); // Extract the subject (user ID)
     }
 
+    public static Date getIssuedAtFromToken(String token) {
+        Algorithm algorithm = Algorithm.HMAC256(SECRET_KEY);
+        JWTVerifier verifier = JWT.require(algorithm).build();
+        DecodedJWT decodedJWT = verifier.verify(token);
+
+        return decodedJWT.getIssuedAt();
+    }
+
+    public static Date getTokenExpiry(String token) {
+        Algorithm algorithm = Algorithm.HMAC256(SECRET_KEY);
+        JWTVerifier verifier = JWT.require(algorithm).build();
+        DecodedJWT decodedJWT = verifier.verify(token);
+
+        return decodedJWT.getExpiresAt();
+    }
+
     public static String generateSecretKey(int keyLengthBytes) {
         byte[] key = new byte[keyLengthBytes];
-        SecureRandom secureRandom = new SecureRandom();
+        SecureRandom secureRandom = new SecureRandom("auf der mauer auf der lauer liegt eine kleine wanze".getBytes());
         secureRandom.nextBytes(key);
-        return Base64.getEncoder().encodeToString(key); // Encode to Base64 for easy storage
+        return Base64.getEncoder().encodeToString(key);
     }
 }

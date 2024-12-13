@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 
 @Entity(name = "my_user")
 public class User {
-    @Id
+    @Id()
     private long uuid;
 
     @Column(unique=true, name = "username")
@@ -21,6 +21,9 @@ public class User {
     @Column(unique = true, name = "email")
     private String email;
 
+    @Column(name = "multifactor")
+    private boolean multifactor;
+
     @Column(name = "salt")
     private byte[] salt;
 
@@ -28,13 +31,22 @@ public class User {
 
     }
 
-    public User(long uuid, String username, String displayName, String password, String email, byte[] salt) {
+    public User(long uuid, String username, String displayName, String password, String email, byte[] salt, boolean multifactor) {
         this.uuid = uuid;
         this.username = username;
         this.displayName = displayName;
         this.password = password;
         this.email = email;
         this.salt = salt;
+        this.multifactor = multifactor;
+    }
+
+    public boolean isMultifactor() {
+        return multifactor;
+    }
+
+    public void setMultifactor(boolean multifactor) {
+        this.multifactor = multifactor;
     }
 
     public byte[] getSalt() {

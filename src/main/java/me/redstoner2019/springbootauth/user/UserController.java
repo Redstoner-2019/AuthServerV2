@@ -10,21 +10,19 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
-import java.util.Random;
+import java.util.*;
 
 @RestController
 public class UserController {
     public final UserJpaRepository userJpaRepository;
     public static HashMap<Long,String> confirmationCodes = new HashMap<>();
     public static HashMap<Long,User> confirmationUser = new HashMap<>();
+    public static HashMap<Long,User> confirmation = new HashMap<>();
+    public static List<String> activeTokens = new ArrayList<>();
 
     public UserController(UserJpaRepository userJpaRepository) {
         this.userJpaRepository = userJpaRepository;
@@ -192,7 +190,32 @@ public class UserController {
         }
     }
 
-    @PostMapping("/user/verifyToken")
+    @PostMapping("/tokenInfo")
+    public ResponseEntity<String> tokenInfo(@RequestBody String body) {
+        try{
+            JSONObject jsonBody = new JSONObject(body);
+            String TOKEN = jsonBody.getString("token");
+
+            Date issued = Token.getIssuedAtFromToken(TOKEN);
+            Date expiry = Token.getTokenExpiry(TOKEN);
+
+            String username = Token.getUsernameFromToken(TOKEN);
+
+            JSONObject response = new JSONObject();
+            response.put("username",username);
+            response.put("issued",issued.getTime());
+            response.put("expiry",expiry.getTime());
+            response.put("issued-string",issued.toString());
+            response.put("expiry-string",expiry.toString());
+            return ResponseEntity.ok().body(response.toString());
+        }catch (Exception e){
+            JSONObject response = new JSONObject();
+            response.put("error",e.getMessage());
+            return ResponseEntity.badRequest().body(response.toString());
+        }
+    }
+
+    @PostMapping("/verifyToken")
     public ResponseEntity<String> isValid(@RequestBody String body) {
         try{
             JSONObject jsonBody = new JSONObject(body);
@@ -202,8 +225,13 @@ public class UserController {
             try {
                 String userId = Token.getUsernameFromToken(jsonBody.getString("token"));
 
-                System.out.println("Token is valid! User ID: " + userId);
-                status = 0;
+                /*if(!activeTokens.contains(jsonBody.getString("token"))){
+                    System.out.println("Token probably forged!");
+                    status = 4;
+                } else {*/
+                    System.out.println("Token is valid! User ID: " + userId);
+                    status = 0;
+                //}
             } catch (TokenExpiredException e) {
                 System.out.println("Token has expired!");
                 status = 1;
@@ -227,7 +255,42 @@ public class UserController {
         }
     }
 
-    @PostMapping("/user/login")
+    @PostMapping("/loginConfirmation")
+    public ResponseEntity<String> loginConfirmation(@RequestBody String body) {
+        try{
+            JSONObject jsonBody = new JSONObject(body);
+
+            long confirmId = jsonBody.getLong("confirmId");
+            String code = jsonBody.getString("code");
+
+            JSONObject response = new JSONObject();
+
+            if(confirmationCodes.containsKey(confirmId)){
+                if(confirmationCodes.get(confirmId).equals(code)){
+                    User user = confirmation.get(confirmId);
+                    response.put("message","success");
+
+                    confirmationCodes.remove(confirmId);
+                    confirmation.remove(confirmId);
+
+                    String TOKEN = Token.generateToken(user.getUsername());
+
+                    response.put("token",TOKEN);
+                    activeTokens.add(TOKEN);
+                } else {
+                    response.put("message","incorect-confirmation-code");
+                }
+            } else {
+                response.put("message","confirm-id-not-found");
+            }
+
+            return ResponseEntity.ok().body(response.toString());
+        }catch (JSONException e){
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/login")
     public ResponseEntity<String> login(@RequestBody String body) {
         try{
             JSONObject jsonBody = new JSONObject(body);
@@ -248,10 +311,37 @@ public class UserController {
             String encryptedPassword = Password.hashPassword(password,salt);
 
             if(encryptedPassword.equals(u.getPassword())){
+                if(u.isMultifactor()){
+                    long confirmId = new Random().nextLong();
+                    String confirmCode = "";
+                    for (int i = 0; i < 3; i++) {
+                        confirmCode += new Random().nextInt(10);
+                    }
+                    confirmCode+="-";
+                    for (int i = 0; i < 3; i++) {
+                        confirmCode += new Random().nextInt(10);
+                    }
+
+                    confirmationCodes.put(confirmId,confirmCode);
+                    confirmation.put(confirmId, u);
+
+
+                    JSONObject response = new JSONObject();
+                    response.put("message","authenticate");
+
+                    response.put("auth-id",confirmId);
+                    System.out.println(confirmCode);
+
+                    Mail.sendLoginEmail(u.getEmail(),confirmCode,u.getUsername(),u.getDisplayName());
+
+                    return ResponseEntity.ok().body(response.toString());
+                }
+
                 JSONObject response = new JSONObject();
                 response.put("message","success");
 
                 String TOKEN = Token.generateToken(u.getUsername());
+                activeTokens.add(TOKEN);
 
                 response.put("token",TOKEN);
                 return ResponseEntity.ok().body(response.toString());
@@ -273,6 +363,32 @@ public class UserController {
         user.setEmail("redstoner.2020@gmail.com");
         user.setUsername("redstoner_2019");
         user.setDisplayName("Redstoner_2019");
+        user.setMultifactor(true);
         userJpaRepository.save(user);
+
+        user = new User();
+        user.setSalt(Password.generateSalt());
+        user.setPassword(Password.hashPassword("test",user.getSalt()));
+        user.setUuid(1);
+        user.setEmail("h.kaplan@optadata.de");
+        user.setUsername("halulzen");
+        user.setDisplayName("HaLuLzEn");
+        user.setMultifactor(true);
+        userJpaRepository.save(user);
+
+        try{
+            user = new User();
+            user.setSalt(Password.generateSalt());
+            user.setPassword(Password.hashPassword("test",user.getSalt()));
+            user.setUuid(2);
+            user.setEmail("redstoner.2020@gmail.com");
+            user.setUsername("testuser");
+            user.setDisplayName("TestUser");
+            userJpaRepository.save(user);
+            System.out.println("Complete");
+        }catch (Exception e){
+            System.out.println("Failed to create user");
+            //e.printStackTrace();
+        }
     }
 }

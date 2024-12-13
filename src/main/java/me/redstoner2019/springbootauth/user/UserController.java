@@ -22,6 +22,7 @@ public class UserController {
     public static HashMap<Long,String> confirmationCodes = new HashMap<>();
     public static HashMap<Long,User> confirmationUser = new HashMap<>();
     public static HashMap<Long,User> confirmation = new HashMap<>();
+    public static HashMap<Long,Long> expiration = new HashMap<>();
     public static List<String> activeTokens = new ArrayList<>();
 
     public UserController(UserJpaRepository userJpaRepository) {
@@ -45,6 +46,7 @@ public class UserController {
                     user.setUsername(json.getString("username"));
                     user.setDisplayName(json.getString("displayName"));
                     user.setEmail(json.getString("email"));
+                    user.updateTokenValidation();
 
                     String unencryptedPassword = json.getString("password");
 
@@ -68,6 +70,7 @@ public class UserController {
 
                         confirmationCodes.put(confirmId,confirmCode);
                         confirmationUser.put(confirmId,user);
+                        expiration.put(confirmId,System.currentTimeMillis() + (15*60*1000));
 
                         Mail.sendCreateEmail(user.getEmail(),confirmCode,user.getUsername(),user.getDisplayName());
 
@@ -90,10 +93,16 @@ public class UserController {
                     long confirmId = json.getLong("confirmationId");
                     String confirmCode = json.getString("confirmationCode");
                     if(confirmationCodes.containsKey(confirmId)){
+                        if(System.currentTimeMillis() - expiration.get(confirmId) > 0){
+                            JSONObject response = new JSONObject();
+                            response.put("message","code-expired");
+                            return ResponseEntity.ok(response.toString());
+                        }
                         if(Objects.equals(confirmationCodes.get(confirmId), confirmCode)){
                             confirmationCodes.remove(confirmId);
                             userJpaRepository.save(confirmationUser.get(confirmId));
                             confirmationUser.remove(confirmId);
+                            expiration.remove(confirmId);
 
                             JSONObject response = new JSONObject();
                             response.put("message","user-created");
@@ -222,28 +231,22 @@ public class UserController {
 
             int status;
 
+            JSONObject response = new JSONObject();
+
             try {
                 String userId = Token.getUsernameFromToken(jsonBody.getString("token"));
-
-                /*if(!activeTokens.contains(jsonBody.getString("token"))){
-                    System.out.println("Token probably forged!");
-                    status = 4;
-                } else {*/
-                    System.out.println("Token is valid! User ID: " + userId);
-                    status = 0;
-                //}
+                response.put("message","Token is valid! User ID: " + userId);
+                status = 0;
             } catch (TokenExpiredException e) {
-                System.out.println("Token has expired!");
+                response.put("message","Token has expired!");
                 status = 1;
             } catch (JWTDecodeException e) {
-                System.out.println("Token structure is invalid!");
+                response.put("message","Token structure is invalid!");
                 status = 2;
             } catch (JWTVerificationException e) {
-                System.out.println("Token is invalid!");
+                response.put("message","Token is invalid!");
                 status = 3;
             }
-
-            JSONObject response = new JSONObject();
 
             response.put("status",status);
 
@@ -267,13 +270,17 @@ public class UserController {
 
             if(confirmationCodes.containsKey(confirmId)){
                 if(confirmationCodes.get(confirmId).equals(code)){
+                    if(System.currentTimeMillis() - expiration.get(confirmId) > 0){
+                        response.put("message","code-expired");
+                        return ResponseEntity.ok(response.toString());
+                    }
                     User user = confirmation.get(confirmId);
                     response.put("message","success");
 
                     confirmationCodes.remove(confirmId);
                     confirmation.remove(confirmId);
 
-                    String TOKEN = Token.generateToken(user.getUsername());
+                    String TOKEN = Token.generateToken(user.getUsername(), user.getTokenValidation());
 
                     response.put("token",TOKEN);
                     activeTokens.add(TOKEN);
@@ -285,6 +292,17 @@ public class UserController {
             }
 
             return ResponseEntity.ok().body(response.toString());
+        }catch (JSONException e){
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    ///Default
+    @PostMapping("/error")
+    public ResponseEntity<String> error(@RequestBody String body) {
+        try{
+            JSONObject jsonBody = new JSONObject(body);
+            return ResponseEntity.badRequest().body(jsonBody.getString("message"));
         }catch (JSONException e){
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -322,8 +340,11 @@ public class UserController {
                         confirmCode += new Random().nextInt(10);
                     }
 
+                    confirmId = Math.abs(confirmId);
+
                     confirmationCodes.put(confirmId,confirmCode);
                     confirmation.put(confirmId, u);
+                    expiration.put(confirmId,System.currentTimeMillis() + (2*60*1000));
 
 
                     JSONObject response = new JSONObject();
@@ -340,7 +361,7 @@ public class UserController {
                 JSONObject response = new JSONObject();
                 response.put("message","success");
 
-                String TOKEN = Token.generateToken(u.getUsername());
+                String TOKEN = Token.generateToken(u.getUsername(), u.getTokenValidation());
                 activeTokens.add(TOKEN);
 
                 response.put("token",TOKEN);
@@ -363,7 +384,8 @@ public class UserController {
         user.setEmail("redstoner.2020@gmail.com");
         user.setUsername("redstoner_2019");
         user.setDisplayName("Redstoner_2019");
-        user.setMultifactor(true);
+        user.setMultifactor(false);
+        user.updateTokenValidation();
         userJpaRepository.save(user);
 
         user = new User();
@@ -374,6 +396,7 @@ public class UserController {
         user.setUsername("halulzen");
         user.setDisplayName("HaLuLzEn");
         user.setMultifactor(true);
+        user.updateTokenValidation();
         userJpaRepository.save(user);
 
         try{
@@ -390,5 +413,48 @@ public class UserController {
             System.out.println("Failed to create user");
             //e.printStackTrace();
         }
+    }
+
+    @PostMapping("/changePassword")
+    public ResponseEntity<String> changePassword(@RequestBody String body) {
+        try{
+            JSONObject request = new JSONObject(body);
+            if(request.has("token") && request.has("password")){
+                String token = request.getString("token");
+
+                JSONObject response = new JSONObject();
+
+                if(!isValidToken(token)){
+                    response.put("message","invalid-token");
+                    return ResponseEntity.status(403).body(response.toString());
+                }
+
+                String username = Token.getUsernameFromToken(token);
+
+                User u = userJpaRepository.findByUsername(username);
+                u.setSalt(Password.generateSalt());
+
+                String password = Password.hashPassword(request.getString("password"),u.getSalt());
+
+                u.setPassword(password);
+                u.updateTokenValidation();
+
+                userJpaRepository.save(u);
+            }
+            return ResponseEntity.badRequest().body(request.getString("message"));
+        }catch (JSONException e){
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    public boolean isValidToken(String token){
+        if(Token.getTokenMode(token) != 0){
+            return false;
+        }
+        User u = userJpaRepository.findByUsername(Token.getUsernameFromToken(token));
+
+        String tokenValidation = Token.getBodyFromToken(token);
+
+        return u.getTokenValidation().equals(tokenValidation);
     }
 }

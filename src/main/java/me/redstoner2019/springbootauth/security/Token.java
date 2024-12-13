@@ -3,7 +3,9 @@ package me.redstoner2019.springbootauth.security;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.exceptions.JWTDecodeException;
 import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.exceptions.TokenExpiredException;
 import com.auth0.jwt.interfaces.DecodedJWT;
 
 import java.security.SecureRandom;
@@ -14,6 +16,18 @@ public class Token {
     private static final String SECRET_KEY = generateSecretKey(256); // Store securely in environment variables
     private static final long TOKEN_EXPIRY = 1000 * 60 * 60 * 72; // 24 hours in milliseconds
 
+    public static int getTokenMode(String token){
+        try {
+            return 0;
+        } catch (TokenExpiredException e) {
+            return 1;
+        } catch (JWTDecodeException e) {
+            return 2;
+        } catch (JWTVerificationException e) {
+            return 3;
+        }
+    }
+
     public static String generateToken(String userId) {
         return JWT.create()
                 .withSubject(userId) // User-specific data
@@ -23,12 +37,30 @@ public class Token {
                 .sign(Algorithm.HMAC256(SECRET_KEY)); // Sign the token
     }
 
+    public static String generateToken(String userId, String body) {
+        return JWT.create()
+                .withSubject(userId) // User-specific data
+                .withExpiresAt(new Date(System.currentTimeMillis() + TOKEN_EXPIRY)) // Token expiration
+                .withIssuedAt(new Date(System.currentTimeMillis()))
+                .withIssuer("auth-server-1.0.0")
+                .withPayload(body)
+                .sign(Algorithm.HMAC256(SECRET_KEY)); // Sign the token
+    }
+
     public static String getUsernameFromToken(String token) {
         Algorithm algorithm = Algorithm.HMAC256(SECRET_KEY);
         JWTVerifier verifier = JWT.require(algorithm).build();
         DecodedJWT decodedJWT = verifier.verify(token);
 
         return decodedJWT.getSubject(); // Extract the subject (user ID)
+    }
+
+    public static String getBodyFromToken(String token) {
+        Algorithm algorithm = Algorithm.HMAC256(SECRET_KEY);
+        JWTVerifier verifier = JWT.require(algorithm).build();
+        DecodedJWT decodedJWT = verifier.verify(token);
+
+        return decodedJWT.getPayload(); // Extract the subject (user ID)
     }
 
     public static Date getIssuedAtFromToken(String token) {

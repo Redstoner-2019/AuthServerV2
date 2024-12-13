@@ -3,6 +3,7 @@ package me.redstoner2019.springbootauth.user;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import me.redstoner2019.springbootauth.security.Token;
 
 @Entity(name = "my_user")
 public class User {
@@ -27,18 +28,34 @@ public class User {
     @Column(name = "salt")
     private byte[] salt;
 
+    @Column(name = "tokenValidation")
+    private String tokenValidation;
+
     public User(){
 
     }
 
-    public User(long uuid, String username, String displayName, String password, String email, byte[] salt, boolean multifactor) {
+    public User(long uuid, String username, String displayName, String password, String email, boolean multifactor, byte[] salt, String tokenValidation) {
         this.uuid = uuid;
         this.username = username;
         this.displayName = displayName;
         this.password = password;
         this.email = email;
-        this.salt = salt;
         this.multifactor = multifactor;
+        this.salt = salt;
+        this.tokenValidation = tokenValidation;
+    }
+
+    public void updateTokenValidation(){
+        tokenValidation = Token.generateToken(username);
+    }
+
+    public String getTokenValidation() {
+        return tokenValidation;
+    }
+
+    public void setTokenValidation(String tokenValidation) {
+        this.tokenValidation = tokenValidation;
     }
 
     public boolean isMultifactor() {

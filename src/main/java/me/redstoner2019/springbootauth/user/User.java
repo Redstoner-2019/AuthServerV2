@@ -3,6 +3,7 @@ package me.redstoner2019.springbootauth.user;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import me.redstoner2019.springbootauth.security.Password;
 import me.redstoner2019.springbootauth.security.Token;
 
 @Entity(name = "my_user")
@@ -47,7 +48,8 @@ public class User {
     }
 
     public void updateTokenValidation(){
-        tokenValidation = Token.generateToken(username);
+        //tokenValidation = Token.generateToken(username);
+        this.salt = Password.generateSalt();
     }
 
     public String getTokenValidation() {

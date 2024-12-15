@@ -235,8 +235,13 @@ public class UserController {
 
             try {
                 String userId = Token.getUsernameFromToken(jsonBody.getString("token"));
-                response.put("message","Token is valid! User ID: " + userId);
-                status = 0;
+                if(!isValidToken(jsonBody.getString("token"))){
+                    response.put("message","Token is invalid!");
+                    status = 4;
+                } else {
+                    response.put("message","Token is valid! User ID: " + userId);
+                    status = 0;
+                }
             } catch (TokenExpiredException e) {
                 response.put("message","Token has expired!");
                 status = 1;
@@ -280,7 +285,8 @@ public class UserController {
                     confirmationCodes.remove(confirmId);
                     confirmation.remove(confirmId);
 
-                    String TOKEN = Token.generateToken(user.getUsername(), user.getTokenValidation());
+                    String TOKEN = Token.generateToken(user.getUsername(), user.getSalt());
+                    //String TOKEN = Token.generateToken(user.getUsername());
 
                     response.put("token",TOKEN);
                     activeTokens.add(TOKEN);
@@ -361,7 +367,8 @@ public class UserController {
                 JSONObject response = new JSONObject();
                 response.put("message","success");
 
-                String TOKEN = Token.generateToken(u.getUsername(), u.getTokenValidation());
+                String TOKEN = Token.generateToken(u.getUsername(), u.getSalt());
+                //String TOKEN = Token.generateToken(u.getUsername());
                 activeTokens.add(TOKEN);
 
                 response.put("token",TOKEN);
@@ -385,7 +392,6 @@ public class UserController {
         user.setUsername("redstoner_2019");
         user.setDisplayName("Redstoner_2019");
         user.setMultifactor(false);
-        user.updateTokenValidation();
         userJpaRepository.save(user);
 
         user = new User();
@@ -396,7 +402,6 @@ public class UserController {
         user.setUsername("halulzen");
         user.setDisplayName("HaLuLzEn");
         user.setMultifactor(true);
-        user.updateTokenValidation();
         userJpaRepository.save(user);
 
         try{
@@ -426,6 +431,7 @@ public class UserController {
 
                 if(!isValidToken(token)){
                     response.put("message","invalid-token");
+                    response.put("reason",Token.getTokenMode(token));
                     return ResponseEntity.status(403).body(response.toString());
                 }
 
@@ -437,11 +443,10 @@ public class UserController {
                 String password = Password.hashPassword(request.getString("password"),u.getSalt());
 
                 u.setPassword(password);
-                u.updateTokenValidation();
 
                 userJpaRepository.save(u);
             }
-            return ResponseEntity.badRequest().body(request.getString("message"));
+            return ResponseEntity.ok().build();
         }catch (JSONException e){
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -452,9 +457,11 @@ public class UserController {
             return false;
         }
         User u = userJpaRepository.findByUsername(Token.getUsernameFromToken(token));
+        return Token.checkValidity(token, u.getSalt());
+        /*User u = userJpaRepository.findByUsername(Token.getUsernameFromToken(token));
 
-        String tokenValidation = Token.getBodyFromToken(token);
+        String tokenValidation = Token.getSecretFromToken(token);
 
-        return u.getTokenValidation().equals(tokenValidation);
+        return u.getTokenValidation().equals(tokenValidation);*/
     }
 }

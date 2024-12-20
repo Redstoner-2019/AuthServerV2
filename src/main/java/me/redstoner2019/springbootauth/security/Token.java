@@ -18,6 +18,7 @@ public class Token {
 
     public static int getTokenMode(String token){
         try {
+            getUsernameFromToken(token);
             return 0;
         } catch (TokenExpiredException e) {
             return 1;

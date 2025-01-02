@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 import me.redstoner2019.springbootauth.security.Password;
 import me.redstoner2019.springbootauth.security.Token;
 
-@Entity(name = "my_user")
+@Entity(name = "authUser")
 public class User {
     @Id()
     private long uuid;

@@ -57,8 +57,13 @@ public class UserController {
                     user.setPassword(pwd);
                     user.setSalt(salt);
 
-                    if(userJpaRepository.findByUsername(user.getUsername()) == null){
-                        long confirmId = new Random().nextLong();
+                    if(userJpaRepository.findByUsername(user.getUsername()).isEmpty()){
+                        if(!userJpaRepository.findByEmail(user.getEmail()).isEmpty()){
+                            JSONObject response = new JSONObject();
+                            response.put("message","email-already-exists");
+                            return ResponseEntity.ok(response.toString());
+                        }
+                        long confirmId = new Random().nextInt();
                         String confirmCode = "";
                         for (int i = 0; i < 3; i++) {
                             confirmCode += new Random().nextInt(10);
@@ -124,7 +129,9 @@ public class UserController {
                 return ResponseEntity.badRequest().body("Type not implemented.");
             }
         } catch (JSONException e){
-            return ResponseEntity.status(418).body(e.getMessage());
+            JSONObject response = new JSONObject();
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(200).body(response.toString());
             //return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
@@ -147,11 +154,13 @@ public class UserController {
     public ResponseEntity<String> fromUsername(@RequestBody String body) {
         try{
             JSONObject jsonBody = new JSONObject(body);
-            User u = userJpaRepository.findByUsername(jsonBody.getString("username"));
-
+            User u;
+            Optional<User> ou = userJpaRepository.findByUsername(jsonBody.getString("username"));
             JSONObject response = new JSONObject();
 
-            if(u == null){
+            if(ou.isPresent()){
+                u = ou.get();
+            } else {
                 response.put("message","not-found");
                 return ResponseEntity.ok().body(response.toString());
             }
@@ -175,13 +184,18 @@ public class UserController {
     public ResponseEntity<String> fromId(@RequestBody String body) {
         try{
             JSONObject jsonBody = new JSONObject(body);
-            User u = userJpaRepository.findByUuid(jsonBody.getLong("id"));
+
+            Optional<User> ou = userJpaRepository.findById(jsonBody.getLong("id"));
+
+            User u;
 
             JSONObject response = new JSONObject();
 
-            if(u == null){
+            if(ou.isEmpty()){
                 response.put("message","not-found");
                 return ResponseEntity.ok().body(response.toString());
+            } else {
+                u = ou.get();
             }
 
             JSONObject user = new JSONObject();
@@ -210,8 +224,12 @@ public class UserController {
 
             String username = Token.getUsernameFromToken(TOKEN);
 
+            User user = userJpaRepository.findByUsername(username).get();
+
             JSONObject response = new JSONObject();
             response.put("username",username);
+            response.put("displayname",user.getDisplayName());
+            response.put("email",user.getEmail());
             response.put("issued",issued.getTime());
             response.put("expiry",expiry.getTime());
             response.put("issued-string",issued.toString());
@@ -309,10 +327,31 @@ public class UserController {
     public ResponseEntity<String> error(@RequestBody String body) {
         try{
             JSONObject jsonBody = new JSONObject(body);
+
+            /*
+             if(request.has("token") && request.has("displayname")){
+                String token = request.getString("token");
+
+                if(!isValidToken(token)){
+                    response.put("message","invalid-token");
+                    response.put("reason",Token.getTokenMode(token));
+                    return ResponseEntity.status(403).body(response.toString());
+                }
+
+                String username = Token.getUsernameFromToken(token);
+            }
+
+            */
+
             return ResponseEntity.badRequest().body(jsonBody.getString("message"));
         }catch (JSONException e){
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    @PostMapping("/test")
+    public ResponseEntity<String> test(@RequestBody String body) {
+        return ResponseEntity.ok().body(body);
     }
 
     @PostMapping("/login")
@@ -323,10 +362,15 @@ public class UserController {
             String password = jsonBody.getString("password");
             int days = jsonBody.optInt("days",3);
 
-            User u = userJpaRepository.findByUsername(username);
-            if(u == null){
-                u = userJpaRepository.findByEmail(username);
-                if(u == null){
+            Optional<User> ou = userJpaRepository.findByUsername(username);
+            User u;
+            if(ou.isPresent()){
+                u = ou.get();
+            } else {
+                ou = userJpaRepository.findByEmail(username);
+                if(ou.isPresent()){
+                    u = ou.get();
+                } else {
                     JSONObject response = new JSONObject();
                     response.put("message","user-not-found");
                     return ResponseEntity.ok().body(response.toString());
@@ -338,7 +382,7 @@ public class UserController {
 
             if(encryptedPassword.equals(u.getPassword())){
                 if(u.isMultifactor()){
-                    long confirmId = new Random().nextLong();
+                    long confirmId = new Random().nextInt();
                     String confirmCode = "";
                     for (int i = 0; i < 3; i++) {
                         confirmCode += new Random().nextInt(10);
@@ -353,7 +397,6 @@ public class UserController {
                     confirmationCodes.put(confirmId,confirmCode);
                     confirmation.put(confirmId, u);
                     expiration.put(confirmId,System.currentTimeMillis() + (2*60*1000));
-
 
                     JSONObject response = new JSONObject();
                     response.put("message","authenticate");
@@ -386,27 +429,31 @@ public class UserController {
     }
 
     public void fillWithTestData(){
-        User user = new User();
-        user.setSalt(Password.generateSalt());
-        user.setPassword(Password.hashPassword("test",user.getSalt()));
-        user.setUuid(0);
-        user.setEmail("redstoner.2020@gmail.com");
-        user.setUsername("redstoner_2019");
-        user.setDisplayName("Redstoner_2019");
-        user.setMultifactor(false);
-        userJpaRepository.save(user);
+        try {
+            User user = new User();
+            user.setSalt(Password.generateSalt());
+            user.setPassword(Password.hashPassword("test",user.getSalt()));
+            user.setUuid(0);
+            user.setEmail("redstoner.2020@gmail.com");
+            user.setUsername("redstoner_2019");
+            user.setDisplayName("Redstoner_2019");
+            user.setMultifactor(true);
+            userJpaRepository.save(user);
 
-        user = new User();
-        user.setSalt(Password.generateSalt());
-        user.setPassword(Password.hashPassword("test",user.getSalt()));
-        user.setUuid(1);
-        user.setEmail("h.kaplan@optadata.de");
-        user.setUsername("halulzen");
-        user.setDisplayName("HaLuLzEn");
-        user.setMultifactor(true);
-        userJpaRepository.save(user);
+            user = new User();
+            user.setSalt(Password.generateSalt());
+            user.setPassword(Password.hashPassword("test",user.getSalt()));
+            user.setUuid(1);
+            user.setEmail("h.kaplan@optadata.de");
+            user.setUsername("halulzen");
+            user.setDisplayName("HaLuLzEn");
+            user.setMultifactor(true);
+            userJpaRepository.save(user);
+        }catch (Exception e){
 
-        try{
+        }
+
+        /*try{
             user = new User();
             user.setSalt(Password.generateSalt());
             user.setPassword(Password.hashPassword("test",user.getSalt()));
@@ -419,6 +466,127 @@ public class UserController {
         }catch (Exception e){
             System.out.println("Failed to create user");
             //e.printStackTrace();
+        }*/
+    }
+
+    @PostMapping("/changeDisplayname")
+    public ResponseEntity<String> changeDisplayname(@RequestBody String body) {
+        try{
+            JSONObject request = new JSONObject(body);
+
+            JSONObject response = new JSONObject();
+
+            if(request.has("token") && request.has("displayname")){
+                String token = request.getString("token");
+
+                if(!isValidToken(token)){
+                    response.put("message","invalid-token");
+                    response.put("reason",Token.getTokenMode(token));
+                    return ResponseEntity.status(403).body(response.toString());
+                }
+
+                String username = Token.getUsernameFromToken(token);
+
+                Optional<User> ou = userJpaRepository.findByUsername(username);
+
+                User u;
+
+                if(ou.isPresent()){
+                    u = ou.get();
+                } else {
+                    response.put("message","unexpected-server-error");
+                    response.put("error","changeDisplayname-user-not-found-from-token");
+                    return ResponseEntity.status(500).body(response.toString());
+                }
+
+                u.setDisplayName(request.getString("displayname"));
+
+                userJpaRepository.save(u);
+            }
+
+            return ResponseEntity.ok().body(response.toString());
+        }catch (JSONException e){
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/changeEmail")
+    public ResponseEntity<String> changeEmail(@RequestBody String body) {
+        try{
+            JSONObject request = new JSONObject(body);
+
+            JSONObject response = new JSONObject();
+
+            if(request.has("token") && request.has("email")){
+                String token = request.getString("token");
+
+                if(!isValidToken(token)){
+                    response.put("message","invalid-token");
+                    response.put("reason",Token.getTokenMode(token));
+                    return ResponseEntity.status(403).body(response.toString());
+                }
+
+                String username = Token.getUsernameFromToken(token);
+                Optional<User> ou = userJpaRepository.findByUsername(username);
+
+                User u;
+
+                if(ou.isPresent()){
+                    u = ou.get();
+                } else {
+                    response.put("message","unexpected-server-error");
+                    response.put("error","changeDisplayname-user-not-found-from-token");
+                    return ResponseEntity.status(500).body(response.toString());
+                }
+
+                u.setEmail(request.getString("email"));
+
+                userJpaRepository.save(u);
+            }
+
+            return ResponseEntity.ok().body(response.toString());
+        }catch (JSONException e){
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/changeMultifactor")
+    public ResponseEntity<String> changeMultifactor(@RequestBody String body) {
+        try{
+            JSONObject request = new JSONObject(body);
+
+            JSONObject response = new JSONObject();
+
+            if(request.has("token") && request.has("multifactor")){
+                String token = request.getString("token");
+
+                if(!isValidToken(token)){
+                    response.put("message","invalid-token");
+                    response.put("reason",Token.getTokenMode(token));
+                    return ResponseEntity.status(403).body(response.toString());
+                }
+
+                String username = Token.getUsernameFromToken(token);
+                Optional<User> ou = userJpaRepository.findByUsername(username);
+
+                User u;
+
+                if(ou.isPresent()){
+                    u = ou.get();
+                } else {
+                    response.put("message","unexpected-server-error");
+                    response.put("error","changeDisplayname-user-not-found-from-token");
+                    return ResponseEntity.status(500).body(response.toString());
+                }
+
+                u.setMultifactor(request.getBoolean("multifactor"));
+
+                userJpaRepository.save(u);
+            }
+
+            return ResponseEntity.ok().body(response.toString());
+        }catch (JSONException e){
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
@@ -438,8 +606,18 @@ public class UserController {
                 }
 
                 String username = Token.getUsernameFromToken(token);
+                Optional<User> ou = userJpaRepository.findByUsername(username);
 
-                User u = userJpaRepository.findByUsername(username);
+                User u;
+
+                if(ou.isPresent()){
+                    u = ou.get();
+                } else {
+                    response.put("message","unexpected-server-error");
+                    response.put("error","changeDisplayname-user-not-found-from-token");
+                    return ResponseEntity.status(500).body(response.toString());
+                }
+
                 u.setSalt(Password.generateSalt());
 
                 String password = Password.hashPassword(request.getString("password"),u.getSalt());
@@ -458,7 +636,7 @@ public class UserController {
         if(Token.getTokenMode(token) != 0){
             return false;
         }
-        User u = userJpaRepository.findByUsername(Token.getUsernameFromToken(token));
+        User u = userJpaRepository.findByUsername(Token.getUsernameFromToken(token)).get();
         return Token.checkValidity(token, u.getSalt());
         /*User u = userJpaRepository.findByUsername(Token.getUsernameFromToken(token));
 

@@ -270,6 +270,7 @@ public class UserController {
 
             long confirmId = jsonBody.getLong("confirmId");
             String code = jsonBody.getString("code");
+            int days = jsonBody.optInt("days",3);
 
             JSONObject response = new JSONObject();
 
@@ -285,7 +286,7 @@ public class UserController {
                     confirmationCodes.remove(confirmId);
                     confirmation.remove(confirmId);
 
-                    String TOKEN = Token.generateToken(user.getUsername(), user.getSalt());
+                    String TOKEN = Token.generateToken(user.getUsername(), user.getSalt(), days);
                     //String TOKEN = Token.generateToken(user.getUsername());
 
                     response.put("token",TOKEN);
@@ -320,6 +321,7 @@ public class UserController {
             JSONObject jsonBody = new JSONObject(body);
             String username = jsonBody.getString("username");
             String password = jsonBody.getString("password");
+            int days = jsonBody.optInt("days",3);
 
             User u = userJpaRepository.findByUsername(username);
             if(u == null){
@@ -367,7 +369,7 @@ public class UserController {
                 JSONObject response = new JSONObject();
                 response.put("message","success");
 
-                String TOKEN = Token.generateToken(u.getUsername(), u.getSalt());
+                String TOKEN = Token.generateToken(u.getUsername(), u.getSalt(), days);
                 //String TOKEN = Token.generateToken(u.getUsername());
                 activeTokens.add(TOKEN);
 

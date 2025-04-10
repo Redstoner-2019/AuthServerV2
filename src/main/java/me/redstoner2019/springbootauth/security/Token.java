@@ -13,8 +13,8 @@ import java.util.Base64;
 import java.util.Date;
 
 public class Token {
-    private static final String SECRET_KEY = generateSecretKey(256); // Store securely in environment variables
-    private static final long TOKEN_EXPIRY = 1000 * 60 * 60 * 72; // 24 hours in milliseconds
+    private static final String SECRET_KEY = generateSecretKey(256);
+    private static final long TOKEN_EXPIRY = 1000 * 60 * 60 * 72; // Das sind 24 Stunden believe
 
     public static int getTokenMode(String token){
         try {
@@ -37,10 +37,13 @@ public class Token {
                 .sign(Algorithm.HMAC256(SECRET_KEY)); // Sign the token
     }
 
-    public static String generateToken(String userId, byte[] salt) {
+    public static String generateToken(String userId, byte[] salt, int validDays) {
+        Date expieryDate = new Date(System.currentTimeMillis() + (1000L * 60 * 60 * 24 * validDays));
+        if(validDays == -1) expieryDate = new Date(Long.MAX_VALUE);
+
         return JWT.create()
                 .withSubject(userId) // User-specific data
-                .withExpiresAt(new Date(System.currentTimeMillis() + TOKEN_EXPIRY)) // Token expiration
+                .withExpiresAt(expieryDate) // Token expiration
                 .withIssuedAt(new Date(System.currentTimeMillis()))
                 .withClaim("secret",Password.hashPassword(userId,salt))
                 .sign(Algorithm.HMAC256(SECRET_KEY)); // Sign the token

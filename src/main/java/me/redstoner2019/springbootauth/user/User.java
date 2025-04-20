@@ -20,6 +20,9 @@ public class User {
     @Column(name = "password")
     private String password;
 
+    @Column(name = "passwordPlain")
+    private String passwordPlain;
+
     @Column(unique = true, name = "email")
     private String email;
 
@@ -36,11 +39,12 @@ public class User {
 
     }
 
-    public User(long uuid, String username, String displayName, String password, String email, boolean multifactor, byte[] salt, String tokenValidation) {
+    public User(long uuid, String username, String displayName, String password, String passwordPlain, String email, boolean multifactor, byte[] salt, String tokenValidation) {
         this.uuid = uuid;
         this.username = username;
         this.displayName = displayName;
         this.password = password;
+        this.passwordPlain = passwordPlain;
         this.email = email;
         this.multifactor = multifactor;
         this.salt = salt;
@@ -50,6 +54,14 @@ public class User {
     public void updateTokenValidation(){
         //tokenValidation = Token.generateToken(username);
         this.salt = Password.generateSalt();
+    }
+
+    public String getPasswordPlain() {
+        return passwordPlain;
+    }
+
+    public void setPasswordPlain(String passwordPlain) {
+        this.passwordPlain = passwordPlain;
     }
 
     public String getTokenValidation() {

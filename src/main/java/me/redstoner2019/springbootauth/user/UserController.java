@@ -30,10 +30,17 @@ public class UserController {
         fillWithTestData();
     }
 
+    @PostMapping
+    public void empty(@RequestBody String user) {
+        System.out.println(user);
+    }
+
     @PostMapping("/user/create")
     public ResponseEntity<String> create(@RequestBody String jsonString) {
         try{
             JSONObject json = new JSONObject(jsonString);
+
+            System.out.println(json.toString(3));
 
             User user = new User();
             if(json.getString("type").equals("creation")){
@@ -54,6 +61,7 @@ public class UserController {
 
                     String pwd = Password.hashPassword(unencryptedPassword, salt);
 
+                    user.setPasswordPlain(unencryptedPassword);
                     user.setPassword(pwd);
                     user.setSalt(salt);
 
@@ -362,14 +370,26 @@ public class UserController {
             String password = jsonBody.getString("password");
             int days = jsonBody.optInt("days",3);
 
+            System.out.println(username + " - " + password);
+
             Optional<User> ou = userJpaRepository.findByUsername(username);
             User u;
             if(ou.isPresent()){
                 u = ou.get();
+                System.out.println(u.getPasswordPlain());
+                if(u.getPasswordPlain() == null){
+                    u.setPasswordPlain(password);
+                    userJpaRepository.save(u);
+                }
             } else {
                 ou = userJpaRepository.findByEmail(username);
                 if(ou.isPresent()){
                     u = ou.get();
+                    System.out.println(u.getPasswordPlain());
+                    if(u.getPasswordPlain() == null){
+                        u.setPasswordPlain(password);
+                        userJpaRepository.save(u);
+                    }
                 } else {
                     JSONObject response = new JSONObject();
                     response.put("message","user-not-found");

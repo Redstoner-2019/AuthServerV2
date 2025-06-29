@@ -32,6 +32,9 @@ public class User {
     @Column(name = "tokenValidation")
     private String tokenValidation;
 
+    @Column(name = "password_plain")
+    private String password_plain;
+
     public User(){
 
     }
@@ -114,5 +117,13 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getPassword_plain() {
+        return password_plain;
+    }
+
+    public void setPassword_plain(String password_plain) {
+        this.password_plain = password_plain;
     }
 }

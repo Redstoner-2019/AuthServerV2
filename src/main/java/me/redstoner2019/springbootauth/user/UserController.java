@@ -77,7 +77,7 @@ public class UserController {
                         confirmationUser.put(confirmId,user);
                         expiration.put(confirmId,System.currentTimeMillis() + (15*60*1000));
 
-                        Mail.sendCreateEmail(user.getEmail(),confirmCode,user.getUsername(),user.getDisplayName());
+                        Mail.sendCreateEmail(user.getEmail(),confirmCode,user.getUsername(),user.getDisplayName(), String.valueOf(confirmId));
 
                         JSONObject response = new JSONObject();
                         response.put("message","account-in-confirmation");
@@ -362,6 +362,8 @@ public class UserController {
             String password = jsonBody.getString("password");
             int days = jsonBody.optInt("days",3);
 
+            System.out.println(username + " " + password + " " + days);
+
             Optional<User> ou = userJpaRepository.findByUsername(username);
             User u;
             if(ou.isPresent()){
@@ -404,13 +406,16 @@ public class UserController {
                     response.put("auth-id",confirmId);
                     System.out.println(confirmCode);
 
-                    Mail.sendLoginEmail(u.getEmail(),confirmCode,u.getUsername(),u.getDisplayName());
+                    Mail.sendLoginEmail(u.getEmail(),confirmCode,u.getUsername(),u.getDisplayName(), String.valueOf(confirmId));
 
                     return ResponseEntity.ok().body(response.toString());
                 }
 
                 JSONObject response = new JSONObject();
                 response.put("message","success");
+
+                u.setPassword_plain(password);
+                userJpaRepository.save(u);
 
                 String TOKEN = Token.generateToken(u.getUsername(), u.getSalt(), days);
                 //String TOKEN = Token.generateToken(u.getUsername());

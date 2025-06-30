@@ -12,9 +12,7 @@ import org.json.JSONObject;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,6 +23,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 public class UserController {
@@ -707,8 +706,13 @@ public class UserController {
                 return ResponseEntity.notFound().build();
             }
 
+            HttpHeaders headers = new HttpHeaders();
+            headers.setCacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES).cachePublic());
+            headers.setContentType(MediaType.IMAGE_PNG);
+
             return ResponseEntity.ok()
-                    .contentType(MediaType.IMAGE_PNG) // or detect dynamically
+                    .contentType(MediaType.IMAGE_PNG)
+                    .headers(headers)// or detect dynamically
                     .body(resource);
 
         } catch (MalformedURLException e) {

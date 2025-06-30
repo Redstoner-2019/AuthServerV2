@@ -698,7 +698,7 @@ public class UserController {
             }
 
             if (!resource.exists()) {
-                System.out.println("not found");
+                System.out.println("not found " + username);
                 resource = new ClassPathResource("default.png");
             }
 
@@ -707,7 +707,7 @@ public class UserController {
             }
 
             HttpHeaders headers = new HttpHeaders();
-            headers.setCacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES).cachePublic());
+            headers.setCacheControl(CacheControl.maxAge(15, TimeUnit.SECONDS).cachePublic());
             headers.setContentType(MediaType.IMAGE_PNG);
 
             return ResponseEntity.ok()

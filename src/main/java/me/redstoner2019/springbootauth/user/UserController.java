@@ -9,11 +9,21 @@ import me.redstoner2019.springbootauth.security.Token;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 @RestController
@@ -634,6 +644,75 @@ public class UserController {
             return ResponseEntity.ok().build();
         }catch (JSONException e){
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/changepfp")
+    public ResponseEntity<String> handleFileUpload(@RequestParam("image") MultipartFile file, @RequestParam("token") String token) {
+        try{
+            JSONObject response = new JSONObject();
+
+            if(!isValidToken(token)){
+                response.put("message","invalid-token");
+                response.put("reason",Token.getTokenMode(token));
+                return ResponseEntity.status(403).body(response.toString());
+            }
+
+            String uuid = userJpaRepository.findByUsername(Token.getUsernameFromToken(token)).get().getUuid() + "";
+
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body("File is empty.");
+            }
+
+            try {
+                Path uploadPath = Paths.get("profile_pictures");
+                Files.createDirectories(uploadPath);
+
+                Path filePath = uploadPath.resolve(uuid + "");
+                Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+                return ResponseEntity.noContent().build();
+            } catch (IOException e) {
+                e.printStackTrace();
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error saving file.");
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return ResponseEntity.badRequest().body("Something went wrong.");
+    }
+
+    @GetMapping("/pfp/{username}")
+    public ResponseEntity<Resource> getImage(@PathVariable String username) {
+        System.out.println("test");
+        try {
+            Optional<User> userOpt = userJpaRepository.findByUsername(username);
+
+            Resource resource;
+
+            if(!userOpt.isPresent()){
+                resource = new ClassPathResource("default.png");
+                UserController.class.getResourceAsStream("/default.png");
+            } else {
+                Path imagePath = Paths.get("profile_pictures").resolve(userOpt.get().getUuid() + "").normalize();
+                resource = new UrlResource(imagePath.toUri());
+            }
+
+            if (!resource.exists()) {
+                System.out.println("not found");
+                resource = new ClassPathResource("default.png");
+            }
+
+            if (!resource.exists()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_PNG) // or detect dynamically
+                    .body(resource);
+
+        } catch (MalformedURLException e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 
